@@ -5,10 +5,10 @@
 
 using namespace std;
 
-unsigned double curr_window_size = 5; //Slow start, so begin with 5
+double curr_window_size = 5; //Slow start, so begin with 5
 unsigned int multiplicative_factor = 2; // The factor by which we decrease our window during a congestion event 
-unsigned int additive_factor = 1 // The factor by which we increase our window during a congestion event 
-uint64_t most_recent_window = -1 //Starting value for most_recent_window 
+unsigned int additive_factor = 1; // The factor by which we increase our window during a congestion event 
+uint64_t most_recent_window = -1; //Starting value for most_recent_window 
 
 /* Default constructor */
 Controller::Controller( const bool debug )
@@ -40,7 +40,8 @@ void Controller::datagram_was_sent( const uint64_t sequence_number,
   /*AIMD (similar to TCP Congestion avoidance) */
   if (sequence_number < most_recent_window) { //congestion has occured 
     curr_window_size /= multiplicative_factor; // multiplicative decrease
-    cerr << "Congestion event detected! " << endl;
+
+    if ( debug_ ) cerr << "Congestion event detected! " << endl;
   } else {
     most_recent_window = sequence_number; // update most recent window sent
   }
