@@ -5,6 +5,11 @@
 
 using namespace std;
 
+unsigned int curr_window_size = 5; //Slow start, so begin with 5
+unsigned int multiplicative_factor = 2; // The factor by which we decrease our window during a congestion event 
+unsigned int additive_factor = 5 // The factor by which we increase our window during a congestion event 
+uint64_t most_recent_window = -1 //Starting value for most_recent_window 
+
 /* Default constructor */
 Controller::Controller( const bool debug )
   : debug_( debug )
@@ -14,7 +19,7 @@ Controller::Controller( const bool debug )
 unsigned int Controller::window_size( void )
 {
   /* Default: fixed window size of 100 outstanding datagrams */
-  unsigned int the_window_size = 50;
+  unsigned int the_window_size = curr_window_size;
 
   if ( debug_ ) {
     cerr << "At time " << timestamp_ms()
@@ -30,7 +35,18 @@ void Controller::datagram_was_sent( const uint64_t sequence_number,
 				    const uint64_t send_timestamp )
                                     /* in milliseconds */
 {
-  /* Default: take no action */
+  /* Choose a scheme below */
+
+  /*AIMD (similar to TCP Congestion avoidance) */
+  if (sequence_number < most_recent_window) { //congestion has occured 
+    curr_window_size /= multiplicative_factor; // multiplicative decrease
+    cerr << "Congestion event detected! " << endl;
+  } else {
+    most_recent_window = sequence_number; // update most recent window sent
+    curr_window_size += additive_factor; //additive increase
+  }
+
+
 
   if ( debug_ ) {
     cerr << "At time " << send_timestamp
