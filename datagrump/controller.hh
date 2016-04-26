@@ -27,6 +27,9 @@ public:
   void datagram_was_sent( const uint64_t sequence_number,
 			  const uint64_t send_timestamp );
 
+  /* There was a timeout. */
+  void on_timeout( void );
+
   /* An ack was received */
   void ack_received( const uint64_t sequence_number_acked,
 		     const uint64_t send_timestamp_acked,
