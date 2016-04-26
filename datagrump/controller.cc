@@ -50,6 +50,7 @@ void Controller::on_timeout( void )
 {
   /* Multiplicative decrease, when congestion is detected. */
   curr_window_size /= multiplicative_factor;
+  if (curr_window_size < 1) curr_window_size = 1;
   // if (debug_) {
     cout << "Congestion event detected." << endl;
   // }
@@ -65,8 +66,13 @@ void Controller::ack_received( const uint64_t sequence_number_acked,
 			       const uint64_t timestamp_ack_received )
                                /* when the ack was received (by sender) */
 {
-  /* Additive increase of the window size. */
-  curr_window_size += additive_factor / curr_window_size;
+  uint64_t rtt = timestamp_ack_received - send_timestamp_acked;
+  if (rtt > 100) {
+    on_timeout();
+  } else {
+    /* Additive increase of the window size. */
+    curr_window_size += additive_factor / curr_window_size;
+  }
 
   if ( debug_ ) {
     cerr << "At time " << timestamp_ack_received
