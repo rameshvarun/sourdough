@@ -7,6 +7,7 @@
 #include "contest_message.hh"
 #include "controller.hh"
 #include "poller.hh"
+#include <ctime>
 
 using namespace std;
 using namespace PollerShortNames;
@@ -25,9 +26,12 @@ private:
      next expects will be acknowledged by the receiver */
   uint64_t next_ack_expected_;
 
+  std::clock_t time_of_last_send_;
+
   void send_datagram( void );
   void got_ack( const uint64_t timestamp, const ContestMessage & msg );
   bool window_is_open( void );
+  bool can_send( void );
 
 public:
   DatagrumpSender( const char * const host, const char * const port,
@@ -64,7 +68,8 @@ DatagrumpSender::DatagrumpSender( const char * const host,
   : socket_(),
     controller_( debug ),
     sequence_number_( 0 ),
-    next_ack_expected_( 0 )
+    next_ack_expected_( 0 ),
+    time_of_last_send_(std::clock())
 {
   /* turn on timestamps when socket receives a datagram */
   socket_.set_timestamps();
@@ -107,11 +112,19 @@ void DatagrumpSender::send_datagram( void )
   /* Inform congestion controller */
   controller_.datagram_was_sent( cm.header.sequence_number,
 				 cm.header.send_timestamp );
+  time_of_last_send_ = std::clock();
 }
 
 bool DatagrumpSender::window_is_open( void )
 {
   return sequence_number_ - next_ack_expected_ < controller_.window_size();
+}
+
+bool DatagrumpSender::can_send( void )
+{
+  double seconds_per_packet = 1 / controller_.send_rate();
+  double seconds_since_last_send = float(std::clock() - time_of_last_send_) /  CLOCKS_PER_SEC;
+  return seconds_since_last_send > seconds_per_packet;
 }
 
 int DatagrumpSender::loop( void )
@@ -122,17 +135,17 @@ int DatagrumpSender::loop( void )
   /* first rule: if the window is open, close it by
      sending more datagrams */
   poller.add_action( Action( socket_, Direction::Out, [&] () {
-	/* Close the window */
-	while ( window_is_open() ) {
-	  send_datagram();
-	}
-	return ResultType::Continue;
-      },
-      /* We're only interested in this rule when the window is open */
-      [&] () { return window_is_open(); } ) );
+  	/* Close the window */
+  	while ( can_send() ) {
+  	  send_datagram();
+  	}
+  	return ResultType::Continue;
+  },
+    /* We're only interested in this rule when the window is open */
+  [&] () { return can_send(); } ) );
 
-  /* second rule: if sender receives an ack,
-     process it and inform the controller
+    /* second rule: if sender receives an ack,
+      process it and inform the controller
      (by using the sender's got_ack method) */
   poller.add_action( Action( socket_, Direction::In, [&] () {
 	const UDPSocket::received_datagram recd = socket_.recv();
@@ -143,15 +156,9 @@ int DatagrumpSender::loop( void )
 
   /* Run these two rules forever */
   while ( true ) {
-    const auto ret = poller.poll( controller_.timeout_ms() );
+    const auto ret = poller.poll(0);
     if ( ret.result == PollResult::Exit ) {
       return ret.exit_status;
-    } else if ( ret.result == PollResult::Timeout ) {
-      /* Notify the controller that there was a timeout. */
-      controller_.on_timeout();
-
-      /* After a timeout, send one datagram to try to get things moving again */
-      send_datagram();
     }
   }
 }
