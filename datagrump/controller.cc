@@ -6,7 +6,7 @@
 using namespace std;
 
 double curr_window_size = 5; //Slow start, so begin with 5
-unsigned int multiplicative_factor = 2; // The factor by which we decrease our window during a congestion event
+unsigned int multiplicative_factor = 10; // The factor by which we decrease our window during a congestion event
 unsigned int additive_factor = 1; // The factor by which we increase our window during a congestion event
 unsigned int prop_delay_threshold = 155; // one-way propogation time threshold, for congestion event detection
 double rate = 5.0;
@@ -20,15 +20,7 @@ Controller::Controller( const bool debug )
 unsigned int Controller::window_size( void )
 {
   /* Default: fixed window size of 100 outstanding datagrams */
-  unsigned int the_window_size = (unsigned int) curr_window_size;
-  if (the_window_size < 1) the_window_size = 1;
-
-  if ( debug_ ) {
-    cerr << "At time " << timestamp_ms() << " window size is " <<
-      the_window_size << endl;
-  }
-
-  return the_window_size;
+  return 40;
 }
 
 /* A datagram was sent */
@@ -59,14 +51,14 @@ void Controller::on_timeout( void )
 uint64_t prev_rtt = 0;
 
 static uint64_t RTT_LOW = 0;
-static uint64_t RTT_HIGH = 200;
+static uint64_t RTT_HIGH = 100;
 static uint64_t MIN_RTT = 0;
-static double alpha = 0.2;
+static double alpha = 0.6;
 static double beta = 0.5;
 static double rtt_diff = 0;
-//static int negative_grad_counter = 0;
+static int negative_grad_counter = 0;
 
-static double MIN_RATE = 1.0;
+static double MIN_RATE = 10.0;
 //static double gamma = 1.0;
 
 /* An ack was received */
@@ -98,24 +90,19 @@ void Controller::ack_received( const uint64_t sequence_number_acked,
   } else if (new_rtt > RTT_HIGH) {
      /* Multiplicative decrease. */
      cout << "Mutliplicative decrease." << endl;
-     rate *= (1 - beta * (1 - RTT_HIGH / (double)new_rtt));
-  } else if (normalized_gradient <= 0) {
-    rate += additive_factor;
-    //if (negative_grad_counter > 5) {
-       //rate += 5 * additive_factor;
-    //   rate += 5*additive_factor;//(1 - gamma * normalized_gradient);
-     //} else {
-    //   rate += 5*additive_factor;
-     //}
-     //negative_grad_counter++;
+     //rate *= (1 - beta * (1 - RTT_HIGH / (double)new_rtt));
+     rate *= 0.5;
+  } else if (normalized_gradient <= 0.05) {
+    if (negative_grad_counter > 2) {
+       rate += negative_grad_counter * additive_factor;
+    } else {
+       rate += additive_factor;
+    }
+    negative_grad_counter++;
   } else {
-    //rate -= 2;
-     //negative_grad_counter = 0;
+    negative_grad_counter = 0;
     rate *= (1 - beta * normalized_gradient);
   }
-
-  cout << normalized_gradient << endl;
-
 
   if ( debug_ ) {
     cerr << "At time " << timestamp_ack_received

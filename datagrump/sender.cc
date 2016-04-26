@@ -124,7 +124,7 @@ bool DatagrumpSender::can_send( void )
 {
   double seconds_per_packet = 1 / controller_.send_rate();
   double seconds_since_last_send = float(std::clock() - time_of_last_send_) /  CLOCKS_PER_SEC;
-  return seconds_since_last_send > seconds_per_packet;
+  return seconds_since_last_send > seconds_per_packet && window_is_open();
 }
 
 int DatagrumpSender::loop( void )
