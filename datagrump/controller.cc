@@ -40,12 +40,15 @@ void Controller::datagram_was_sent( const uint64_t sequence_number,
 
 uint64_t prev_rtt = 0;
 
+static uint64_t RTT_RESET = 200;
+
 static uint64_t RTT_LOW = 0;
 static uint64_t RTT_HIGH = 100;
 static uint64_t MIN_RTT = 0;
 static double alpha = 0.6;
-static double beta = 0.5;
+static double beta = 0.8;
 static double rtt_diff = 0;
+static double gamma = 2;
 static int negative_grad_counter = 0;
 
 static double MIN_RATE = 10.0;
@@ -77,21 +80,28 @@ void Controller::ack_received( const uint64_t sequence_number_acked,
   if (new_rtt < RTT_LOW) {
      /* Additive increase of the window size. */
      rate += additive_factor;
+  } else if (new_rtt > RTT_RESET) {
+    cout << "Delay too high. Resetting rate." << endl;
+    rate = MIN_RATE;
   } else if (new_rtt > RTT_HIGH) {
      /* Multiplicative decrease. */
      cout << "Mutliplicative decrease." << endl;
      //rate *= (1 - beta * (1 - RTT_HIGH / (double)new_rtt));
      rate *= 0.5;
-  } else if (normalized_gradient <= 0.05) {
-    if (negative_grad_counter > 2) {
+  } else if (normalized_gradient <= -0.05) {
+    // rate -= 250*normalized_gradient;
+    rate *= (1 - gamma * normalized_gradient);
+    /*if (negative_grad_counter > 2) {
        rate += negative_grad_counter * additive_factor;
     } else {
        rate += additive_factor;
     }
-    negative_grad_counter++;
-  } else {
+    negative_grad_counter++;*/
+  } else if (normalized_gradient >= 0.05) {
     negative_grad_counter = 0;
     rate *= (1 - beta * normalized_gradient);
+  } else {
+
   }
 
   if ( debug_ ) {
