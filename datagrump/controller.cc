@@ -77,8 +77,12 @@ void Controller::ack_received( const uint64_t sequence_number_acked,
   base_delay = std::min(base_delay, delay);
   double queueing_delay = delay - base_delay;
 
-  double off_target = TARGET_DELAY - queueing_delay;
-  curr_window_size += GAIN * off_target / curr_window_size;
+  if (queueing_delay > 150) {
+    curr_window_size = 1;
+  } else {
+    double off_target = TARGET_DELAY - queueing_delay;
+    curr_window_size += GAIN * off_target / curr_window_size;
+  }
   if (curr_window_size < 1) curr_window_size = 1;
 
   if ( debug_ ) {
