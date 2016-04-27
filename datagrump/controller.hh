@@ -20,18 +20,15 @@ public:
   /* Default constructor */
   Controller( const bool debug );
 
-  /* Get current window size, in datagrams */
+  /* Get current window size, in datagrams. */
   unsigned int window_size( void );
 
   /* Get the send rate that we can send at. */
   double send_rate( void );
 
-  /* A datagram was sent */
+  /* A datagram was sent. */
   void datagram_was_sent( const uint64_t sequence_number,
 			  const uint64_t send_timestamp );
-
-  /* There was a timeout. */
-  void on_timeout( void );
 
   /* An ack was received */
   void ack_received( const uint64_t sequence_number_acked,

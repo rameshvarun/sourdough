@@ -38,16 +38,6 @@ void Controller::datagram_was_sent( const uint64_t sequence_number,
   }
 }
 
-void Controller::on_timeout( void )
-{
-  /* Multiplicative decrease, when congestion is detected. */
-  curr_window_size /= multiplicative_factor;
-  if (curr_window_size < 1) curr_window_size = 1;
-  // if (debug_) {
-    cout << "Congestion event detected." << endl;
-  // }
-}
-
 uint64_t prev_rtt = 0;
 
 static uint64_t RTT_LOW = 0;

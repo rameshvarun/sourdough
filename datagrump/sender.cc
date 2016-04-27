@@ -135,7 +135,7 @@ int DatagrumpSender::loop( void )
   /* first rule: if the window is open, close it by
      sending more datagrams */
   poller.add_action( Action( socket_, Direction::Out, [&] () {
-  	/* Close the window */
+  	/* While we are able to send datagrams, send datagrams. */
   	while ( can_send() ) {
   	  send_datagram();
   	}
