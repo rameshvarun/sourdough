@@ -1,6 +1,7 @@
+#!/usr/bin/env python
+
 import time
 import subprocess
-import select
 import sys
 from Queue import Queue
 from threading import Thread
