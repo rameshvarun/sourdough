@@ -16,7 +16,7 @@ unsigned int prop_delay_threshold = 155; // one-way propogation time threshold, 
 unsigned int MIN_WINDOW_SIZE = 5;
 
 std::ofstream window_size_log;
-
+std::ofstream queueing_delay_log;
 
 /* Default constructor */
 Controller::Controller( const bool debug )
@@ -24,6 +24,7 @@ Controller::Controller( const bool debug )
 {
   if (diagnostics_) {
     window_size_log.open("congestion_window_size.log", std::ofstream::out | std::ofstream::trunc);
+    queueing_delay_log.open("queueing_delay.log", std::ofstream::out | std::ofstream::trunc);
   }
 }
 
@@ -88,6 +89,10 @@ void Controller::ack_received( const uint64_t sequence_number_acked,
   double delay = (double)recv_timestamp_acked - (double)send_timestamp_acked;
   base_delay = std::min(base_delay, delay);
   double queueing_delay = delay - base_delay;
+
+  if (diagnostics_) {
+    queueing_delay_log << queueing_delay << endl;
+  }
 
   if (queueing_delay > 150) {
     curr_window_size = 1;
