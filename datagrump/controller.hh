@@ -9,6 +9,7 @@ class Controller
 {
 private:
   bool debug_; /* Enables debugging output */
+  bool diagnostics_ = true; /* Write diagnostics to a file. */
 
   /* Add member variables here */
 

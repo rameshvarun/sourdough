@@ -3,6 +3,7 @@
 #include "controller.hh"
 #include "timestamp.hh"
 
+#include <fstream>
 #include <limits>
 
 using namespace std;
@@ -14,10 +15,17 @@ unsigned int prop_delay_threshold = 155; // one-way propogation time threshold, 
 
 unsigned int MIN_WINDOW_SIZE = 5;
 
+std::ofstream window_size_log;
+
+
 /* Default constructor */
 Controller::Controller( const bool debug )
   : debug_( debug )
-{}
+{
+  if (diagnostics_) {
+    window_size_log.open("congestion_window_size.log", std::ofstream::out | std::ofstream::trunc);
+  }
+}
 
 /* Get current window size, in datagrams */
 unsigned int Controller::window_size( void )
@@ -25,6 +33,10 @@ unsigned int Controller::window_size( void )
   /* Default: fixed window size of 100 outstanding datagrams */
   unsigned int the_window_size = (unsigned int) curr_window_size;
   if (the_window_size < MIN_WINDOW_SIZE) the_window_size = MIN_WINDOW_SIZE;
+
+  if (diagnostics_) {
+    window_size_log << the_window_size << endl;
+  }
 
   if ( debug_ ) {
     cerr << "At time " << timestamp_ms() << " window size is " <<
