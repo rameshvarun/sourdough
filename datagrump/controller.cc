@@ -17,6 +17,8 @@ unsigned int MIN_WINDOW_SIZE = 5;
 
 std::ofstream window_size_log;
 std::ofstream queueing_delay_log;
+std::ofstream queueing_delay_gradient_log;
+std::ofstream queueing_delay_forecast_log;
 
 /* Default constructor */
 Controller::Controller( const bool debug )
@@ -25,6 +27,8 @@ Controller::Controller( const bool debug )
   if (diagnostics_) {
     window_size_log.open("congestion_window_size.log", std::ofstream::out | std::ofstream::trunc);
     queueing_delay_log.open("queueing_delay.log", std::ofstream::out | std::ofstream::trunc);
+    queueing_delay_gradient_log.open("queueing_delay_gradient.log", std::ofstream::out | std::ofstream::trunc);
+    queueing_delay_forecast_log.open("queueing_delay_forecast.log", std::ofstream::out | std::ofstream::trunc);
   }
 }
 
@@ -76,6 +80,10 @@ double base_delay = std::numeric_limits<double>::infinity();
 double TARGET_DELAY = 20;
 double GAIN = .05;
 
+double prev_queueing_delay = 0;
+double queueing_delay_gradient = 0;
+double alpha = 0.9;
+
 /* An ack was received */
 void Controller::ack_received( const uint64_t sequence_number_acked,
 			       /* what sequence number was acknowledged */
@@ -86,18 +94,30 @@ void Controller::ack_received( const uint64_t sequence_number_acked,
 			       const uint64_t timestamp_ack_received )
                                /* when the ack was received (by sender) */
 {
+  /* Calculate the queueing delay by subtracting the base delay (smallest
+     measurement we have recieved so far) from the delay measurment. */
   double delay = (double)recv_timestamp_acked - (double)send_timestamp_acked;
   base_delay = std::min(base_delay, delay);
   double queueing_delay = delay - base_delay;
 
+  /* Update our estimate of the gradient. */
+  double new_delay_diff = queueing_delay - prev_queueing_delay;
+  queueing_delay_gradient = (1 - alpha) * queueing_delay_gradient + alpha * new_delay_diff;
+  prev_queueing_delay = queueing_delay;
+
+  /* Predict the queueing_delay in the future. */
+  double queueing_delay_forecast = std::max(queueing_delay + queueing_delay_gradient, 0.0);
+
   if (diagnostics_) {
     queueing_delay_log << queueing_delay << endl;
+    queueing_delay_gradient_log << queueing_delay_gradient << endl;
+    queueing_delay_forecast_log << queueing_delay_forecast << endl;
   }
 
   if (queueing_delay > 150) {
     curr_window_size = 1;
   } else {
-    double off_target = TARGET_DELAY - queueing_delay;
+    double off_target = TARGET_DELAY - queueing_delay_forecast;
     curr_window_size += GAIN * off_target / curr_window_size;
   }
   if (curr_window_size < 1) curr_window_size = 1;
