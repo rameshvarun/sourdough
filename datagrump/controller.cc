@@ -68,7 +68,7 @@ void Controller::datagram_was_sent( const uint64_t sequence_number,
 
 void Controller::on_timeout( void )
 {
-  if(_debug) {
+  if(debug_) {
     cout << "Timeout occurred." << endl;
   }
 }
