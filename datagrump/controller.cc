@@ -9,13 +9,10 @@
 
 using namespace std;
 
-double curr_window_size = 5; //Slow start, so begin with 5
-unsigned int multiplicative_factor = 2; // The factor by which we decrease our window during a congestion event
-unsigned int additive_factor = 1; // The factor by which we increase our window during a congestion event
-unsigned int prop_delay_threshold = 155; // one-way propogation time threshold, for congestion event detection
+double curr_window_size = 5; // Initial congestion window size.
+unsigned int MIN_WINDOW_SIZE = 5; // The minimum size that the window can be.
 
-unsigned int MIN_WINDOW_SIZE = 5;
-
+/* Log files for writing diagnostics. */
 std::ofstream window_size_log;
 std::ofstream queueing_delay_log;
 std::ofstream queueing_delay_gradient_log;
@@ -25,7 +22,7 @@ std::ofstream queueing_delay_forecast_log;
 Controller::Controller( const bool debug )
   : debug_( debug )
 {
-  if (diagnostics_) {
+  if (diagnostics_) { /* Intialize log files. */
     window_size_log.open("congestion_window_size.log", std::ofstream::out | std::ofstream::trunc);
     queueing_delay_log.open("queueing_delay.log", std::ofstream::out | std::ofstream::trunc);
     queueing_delay_gradient_log.open("queueing_delay_gradient.log", std::ofstream::out | std::ofstream::trunc);
@@ -36,13 +33,9 @@ Controller::Controller( const bool debug )
 /* Get current window size, in datagrams */
 unsigned int Controller::window_size( void )
 {
-  /* Default: fixed window size of 100 outstanding datagrams */
   unsigned int the_window_size = (unsigned int) curr_window_size;
   if (the_window_size < MIN_WINDOW_SIZE) the_window_size = MIN_WINDOW_SIZE;
-
-  if (diagnostics_) {
-    window_size_log << the_window_size << endl;
-  }
+  if (diagnostics_) window_size_log << the_window_size << endl;
 
   if ( debug_ ) {
     cerr << "At time " << timestamp_ms() << " window size is " <<
@@ -58,9 +51,6 @@ void Controller::datagram_was_sent( const uint64_t sequence_number,
 				    const uint64_t send_timestamp )
                                     /* in milliseconds */
 {
-
-
-
   if ( debug_ ) {
     cerr << "At time " << send_timestamp
 	 << " sent datagram " << sequence_number << endl;
@@ -69,25 +59,26 @@ void Controller::datagram_was_sent( const uint64_t sequence_number,
 
 void Controller::on_timeout( void ) {}
 
-static double current_time_in_ms() {
+static double current_time_in_ms() { /* Helper function to get current time. */
   return 1000.0 * (std::clock() / (double)CLOCKS_PER_SEC);
 }
 
+/* Measure of the propagation delay. */
 double base_delay = std::numeric_limits<double>::infinity();
-double TARGET_DELAY = 20;
+double TARGET_DELAY = 20; /* The delay target for a linear controller. */
 
+/* Gains for increasing and descreasing on the linear controller. */
 double INCREASE_GAIN = .20;
 double DECREASE_GAIN = .20;
 
+/* For estimating the gradient. */
 double prev_queueing_delay = 0;
-
 double queueing_delay_gradient = 0;
 double alpha = 0.95;
-
-double PANIC_DELAY = 150;
-double SLACK = 1.2;
-
 double prev_delay_time = current_time_in_ms();
+
+double PANIC_DELAY = 150; /* Panic threshold. */
+double SLACK = 1.2; /* Slack on our forecast. */
 
 /* An ack was received */
 void Controller::ack_received( const uint64_t sequence_number_acked,
@@ -97,7 +88,7 @@ void Controller::ack_received( const uint64_t sequence_number_acked,
 			       const uint64_t recv_timestamp_acked,
 			       /* when the acknowledged datagram was received (receiver's clock)*/
 			       const uint64_t timestamp_ack_received )
-                               /* when the ack was received (by sender) */
+             /* when the ack was received (by sender) */
 {
   /* Calculate the queueing delay by subtracting the base delay (smallest
      measurement we have recieved so far) from the delay measurment. */
@@ -109,9 +100,7 @@ void Controller::ack_received( const uint64_t sequence_number_acked,
   /* Update our estimate of the gradient. */
   double new_delay_diff = queueing_delay - prev_queueing_delay;
   double new_time_diff = current_delay_time - prev_delay_time;
-
   queueing_delay_gradient = (1 - alpha) * queueing_delay_gradient + alpha * (new_delay_diff / new_time_diff);
-
   prev_queueing_delay = queueing_delay;
   prev_delay_time = current_delay_time;
 
@@ -124,14 +113,17 @@ void Controller::ack_received( const uint64_t sequence_number_acked,
     queueing_delay_forecast_log << queueing_delay_forecast << endl;
   }
 
+  /* If the delay is over a threshold, panic and reset.*/
   if (queueing_delay > PANIC_DELAY) {
     curr_window_size = 1;
   } else {
+    /* Use a linear controller to make delay go to the target. */
     double off_target = TARGET_DELAY - queueing_delay_forecast;
-
     if (off_target > 0) curr_window_size += INCREASE_GAIN * off_target / curr_window_size;
     else curr_window_size += DECREASE_GAIN * off_target / curr_window_size;
   }
+
+  /* Prevent the window from dropping below 1. */
   if (curr_window_size < 1) curr_window_size = 1;
 
   if ( debug_ ) {
