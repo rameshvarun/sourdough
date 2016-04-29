@@ -3,6 +3,7 @@
 #include "controller.hh"
 #include "timestamp.hh"
 
+#include <ctime>
 #include <fstream>
 #include <limits>
 
@@ -68,22 +69,28 @@ void Controller::datagram_was_sent( const uint64_t sequence_number,
 
 void Controller::on_timeout( void )
 {
-  if(debug_) {
-    cout << "Timeout occurred." << endl;
-  }
+  cout << "Outage detected." << endl;
+}
+
+static double current_time_in_ms() {
+  return 1000.0 * (std::clock() / (double)CLOCKS_PER_SEC);
 }
 
 double base_delay = std::numeric_limits<double>::infinity();
 double TARGET_DELAY = 20;
 
-double INCREASE_GAIN = .10;
-double DECREASE_GAIN = .10;
+double INCREASE_GAIN = .20;
+double DECREASE_GAIN = .20;
 
 double prev_queueing_delay = 0;
+
 double queueing_delay_gradient = 0;
 double alpha = 0.9;
 
-double PANIC_DELAY = 150;
+double PANIC_DELAY = 100;
+double SLACK = 1.2;
+
+double prev_delay_time = current_time_in_ms();
 
 /* An ack was received */
 void Controller::ack_received( const uint64_t sequence_number_acked,
@@ -100,14 +107,19 @@ void Controller::ack_received( const uint64_t sequence_number_acked,
   double delay = (double)recv_timestamp_acked - (double)send_timestamp_acked;
   base_delay = std::min(base_delay, delay);
   double queueing_delay = delay - base_delay;
+  double current_delay_time = current_time_in_ms();
 
   /* Update our estimate of the gradient. */
   double new_delay_diff = queueing_delay - prev_queueing_delay;
-  queueing_delay_gradient = (1 - alpha) * queueing_delay_gradient + alpha * new_delay_diff;
+  double new_time_diff = current_delay_time - prev_delay_time;
+
+  queueing_delay_gradient = (1 - alpha) * queueing_delay_gradient + alpha * (new_delay_diff / new_time_diff);
+
   prev_queueing_delay = queueing_delay;
+  prev_delay_time = current_delay_time;
 
   /* Predict the queueing_delay in the future. */
-  double queueing_delay_forecast = std::max(queueing_delay + queueing_delay_gradient, 0.0);
+  double queueing_delay_forecast = SLACK*std::max(queueing_delay + queueing_delay_gradient*new_time_diff, 0.0);
 
   if (diagnostics_) {
     queueing_delay_log << queueing_delay << endl;
