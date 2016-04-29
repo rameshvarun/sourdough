@@ -68,21 +68,22 @@ void Controller::datagram_was_sent( const uint64_t sequence_number,
 
 void Controller::on_timeout( void )
 {
-  /* Multiplicative decrease, when congestion is detected. */
-  curr_window_size /= multiplicative_factor;
-  if (curr_window_size < 1) curr_window_size = 1;
-  // if (debug_) {
-    cout << "Congestion event detected." << endl;
-  // }
+  if(_debug) {
+    cout << "Timeout occurred." << endl;
+  }
 }
 
 double base_delay = std::numeric_limits<double>::infinity();
 double TARGET_DELAY = 20;
-double GAIN = .05;
+
+double INCREASE_GAIN = .10;
+double DECREASE_GAIN = .10;
 
 double prev_queueing_delay = 0;
 double queueing_delay_gradient = 0;
 double alpha = 0.9;
+
+double PANIC_DELAY = 150;
 
 /* An ack was received */
 void Controller::ack_received( const uint64_t sequence_number_acked,
@@ -114,11 +115,14 @@ void Controller::ack_received( const uint64_t sequence_number_acked,
     queueing_delay_forecast_log << queueing_delay_forecast << endl;
   }
 
-  if (queueing_delay > 150) {
+  if (queueing_delay > PANIC_DELAY) {
     curr_window_size = 1;
+    cout << "Panic." << endl;
   } else {
     double off_target = TARGET_DELAY - queueing_delay_forecast;
-    curr_window_size += GAIN * off_target / curr_window_size;
+
+    if (off_target > 0) curr_window_size += INCREASE_GAIN * off_target / curr_window_size;
+    else curr_window_size += DECREASE_GAIN * off_target / curr_window_size;
   }
   if (curr_window_size < 1) curr_window_size = 1;
 
