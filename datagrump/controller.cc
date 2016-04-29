@@ -67,10 +67,7 @@ void Controller::datagram_was_sent( const uint64_t sequence_number,
   }
 }
 
-void Controller::on_timeout( void )
-{
-  cout << "Outage detected." << endl;
-}
+void Controller::on_timeout( void ) {}
 
 static double current_time_in_ms() {
   return 1000.0 * (std::clock() / (double)CLOCKS_PER_SEC);
@@ -85,9 +82,9 @@ double DECREASE_GAIN = .20;
 double prev_queueing_delay = 0;
 
 double queueing_delay_gradient = 0;
-double alpha = 0.9;
+double alpha = 0.95;
 
-double PANIC_DELAY = 100;
+double PANIC_DELAY = 150;
 double SLACK = 1.2;
 
 double prev_delay_time = current_time_in_ms();
@@ -129,7 +126,6 @@ void Controller::ack_received( const uint64_t sequence_number_acked,
 
   if (queueing_delay > PANIC_DELAY) {
     curr_window_size = 1;
-    cout << "Panic." << endl;
   } else {
     double off_target = TARGET_DELAY - queueing_delay_forecast;
 
